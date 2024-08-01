@@ -14,5 +14,6 @@ Fork From [Google Webtransport Example](https://googlechrome.github.io/samples/w
 ## Feature List
 
 - [x] 随机字符串
-- [ ] 自动发送校验测试
+- [x] 自动发送校验测试
+- [x] 往返速度测试
 - [ ] 多客户端连接测试

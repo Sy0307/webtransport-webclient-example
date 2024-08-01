@@ -1,27 +1,20 @@
-// Adds an entry to the event log on the page, optionally applying a specified
-// CSS class.
-
-
-let currentTransport, streamNumber, currentTransportDatagramWriter ;
+let currentTransport, streamNumber, currentTransportDatagramWriter;
 let fghex = "9942029c06af74dbfd87d84d85404f1b53806670b5a637a287aa21135bb09e54";
 let fingerprint = [];
 let bidiStreamCount = 0;
 for (let c = 0; c < fghex.length - 1; c += 2) {
   fingerprint.push(parseInt(fghex.substring(c, c + 2), 16));
 }
-
-
-
-
-var globalBidiStream;
+var auto_test_suc_cnt = 0;
+const randomData_tosend = new Set();
 // "Connect" button handler.
 async function connect() {
-  var transport ;
+  var transport;
   generateRandomString();
   randomString = generateRandomString(10);
   const url = document.getElementById('url').value;
   try {
-    transport = new WebTransport(url,{
+    transport = new WebTransport(url, {
       serverCertificateHashes: [
         {
           algorithm: 'sha-256',
@@ -34,9 +27,7 @@ async function connect() {
     addToEventLog('Failed to create connection object. ' + e, 'error');
     return;
   }
-  console.log(transport);
-
-  
+  // console.log(transport);
   try {
     await transport.ready;
     addToEventLog('Connection ready.');
@@ -44,7 +35,6 @@ async function connect() {
     addToEventLog('Connection failed. ' + e, 'error');
     return;
   }
-
   transport.closed
     .then(() => {
       addToEventLog('Connection closed normally.');
@@ -52,7 +42,6 @@ async function connect() {
     .catch(() => {
       addToEventLog('Connection closed abruptly.', 'error');
     });
-
   currentTransport = transport;
   streamNumber = 1;
   try {
@@ -62,58 +51,46 @@ async function connect() {
     addToEventLog('Sending datagrams not supported: ' + e, 'error');
     return;
   }
-  //let stream = await transport.createBidirectionalStream();
-  //globalBidiStream = stream
   readDatagrams(transport);
   acceptUnidirectionalStreams(transport);
-  //acceptBidirectionalStreams(transport, stream);
   document.forms.sending.elements.send.disabled = false;
   document.getElementById('connect').disabled = true;
+  document.getElementById('autotest').disabled = false; // Enable Auto test button
 }
-
-
-
 // "Send data" button handler.
 async function sendData() {
   let form = document.forms.sending.elements;
   let encoder = new TextEncoder('utf-8');
-
-  generateRandomString();
-
-  let rawData = sending.data.value;
-  let data = encoder.encode(rawData);
+  let random_gen_data = generateRandomString(10); // Generate and store random string
+  let data = encoder.encode(random_gen_data);
   let transport = currentTransport;
-  let stream = await transport.createBidirectionalStream();
-  globalBidiStream = stream
-  acceptBidirectionalStreams(transport, stream);
   try {
     switch (form.sendtype.value) {
-      case 'datagram':{
+      case 'datagram': {
+        randomData_tosend.add(random_gen_data);
         await currentTransportDatagramWriter.write(data);
-        addToEventLog('Sent datagram: ' + rawData);
-        // let value_encoded = new TextDecoder().decode(value);
-        // addToEventLog('Echo Received datagram: ' + value_encoded);
+        addToEventLog('Sent datagram: ' + random_gen_data);
         break;
       }
       case 'unidi': {
         let stream = await transport.createUnidirectionalStream();
         let writer = stream.getWriter();
+        randomData_tosend.add(random_gen_data);
         await writer.write(data);
         await writer.close();
-        addToEventLog('Sent a unidirectional stream with data: ' + rawData);
+        addToEventLog('Sent a unidirectional stream with data: ' + random_gen_data);
         break;
       }
       case 'bidi': {
-        let stream = globalBidiStream;//await transport.createBidirectionalStream();
+        let stream = await transport.createBidirectionalStream();
         let number = streamNumber++;
-        // readFromIncomingStream(stream, number);
-
+        acceptBidirectionalStreams(transport, stream, random_gen_data);
         let writer = stream.writable.getWriter();
         await writer.write(data);
         await writer.close();
         addToEventLog(
           'Opened bidirectional stream #' + number +
-          ' with data: ' + rawData);
+          ' with data: ' + randomData_tosend);
         break;
       }
     }
@@ -121,7 +98,6 @@ async function sendData() {
     addToEventLog('Error while sending data: ' + e, 'error');
   }
 }
-
 // Reads datagrams from |transport| into the event log until EOF is reached.
 async function readDatagrams(transport) {
   try {
@@ -141,61 +117,57 @@ async function readDatagrams(transport) {
       }
       let data = decoder.decode(value);
       addToEventLog('Echo Datagram received: ' + data);
+      validateData(data);
     }
   } catch (e) {
     addToEventLog('Error while reading datagrams: ' + e, 'error');
   }
 }
-
 async function acceptUnidirectionalStreams(transport) {
   addToEventLog('Waiting for incoming unidirectional streams...');
   let reader = transport.incomingUnidirectionalStreams.getReader();
   try {
     while (true) {
       const { value, done } = await reader.read();
-
       if (done) {
         addToEventLog('Done accepting unidirectional streams!');
         return;
       }
       let stream = value; // ReadableStream
       let number = streamNumber++; // stream_id
+      validateData(value);
       readFromIncomingStream(stream, number);
     }
   } catch (e) {
     addToEventLog('Error while accepting streams: ' + e, 'error');
   }
 }
-
-async function acceptBidirectionalStreams(transport, bidiStream) {
+async function acceptBidirectionalStreams(transport, bidiStream, expectedData) {
   addToEventLog('Waiting for incoming bidirectional streams...');
   let decoder = new TextDecoderStream('utf-8');
-  let reader = bidiStream.readable.pipeThrough(decoder).getReader();  
+  let reader = bidiStream.readable.pipeThrough(decoder).getReader();
   let data = "";
-  
   try {
     while (true) {
       const { value, done } = await reader.read();
-
       if (done) {
         bidiStreamCount++;
-        addToEventLog('Recv data on bidirectional stream: '+bidiStreamCount+' : ' + data);
+        addToEventLog('Recv data on bidirectional stream: ' + bidiStreamCount + ' : ' + data);
+        validateData(data, expectedData);
         addToEventLog('Done accepting bidirectional streams!');
-        
         return;
       }
       data = value;
-      //readFromIncomingStream(stream, number);
     }
   } catch (e) {
     addToEventLog('Error while accepting streams: ' + e, 'error');
   }
 }
-
 async function readFromIncomingStream(stream, number) {
   let decoder = new TextDecoderStream('utf-8');
   let reader = stream.pipeThrough(decoder).getReader();
-  // let reader = stream.getReader();
+  let form = document.forms.sending.elements;
+  let expectedData = randomData_tosend; // Use the global randomData_tosend
   try {
     while (true) {
       const { value, done } = await reader.read();
@@ -204,8 +176,8 @@ async function readFromIncomingStream(stream, number) {
         return;
       }
       let data = value;
-      console.log("value size: ", value.length);
       addToEventLog('Received data on stream #' + number + ': ' + data);
+      await validateData(data, expectedData);
     }
   } catch (e) {
     addToEventLog(
@@ -213,34 +185,78 @@ async function readFromIncomingStream(stream, number) {
     addToEventLog('    ' + e.message);
   }
 }
-
+function validateData(receivedData, expectedData) {
+  if (randomData_tosend.has(receivedData)) {
+    randomData_tosend.delete(receivedData);
+    auto_test_suc_cnt += 1;
+    return;
+  }
+  if (receivedData === expectedData) auto_test_suc_cnt += 1;
+}
 function addToEventLog(text, severity = 'info') {
   let log = document.getElementById('event-log');
   let mostRecentEntry = log.lastElementChild;
   let entry = document.createElement('li');
-  entry.innerText = text;
-  entry.className = 'log-' + severity;
-  log.appendChild(entry);
 
-  // If the most recent entry in the log was visible, scroll the log to the
-  // newly added element.
+  let options = {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  };
+
+  let timestamp = new Date().toLocaleTimeString() + '.' + new Date().getMilliseconds().toString().padStart(3, '0');
+  entry.innerText = `[${timestamp}] ${text}`;
+
+
+  // 根据不同的严重性级别添加不同的样式
+  if (severity === 'summary') {
+    entry.style.fontWeight = 'bold';
+    entry.style.color = 'red';
+  } else {
+    entry.className = 'log-' + severity;
+  }
+
+  log.appendChild(entry);
   if (mostRecentEntry != null &&
     mostRecentEntry.getBoundingClientRect().top <
     log.getBoundingClientRect().bottom) {
     entry.scrollIntoView();
   }
 }
-
 // 随机生成字符串 给输入框
-function generateRandomString() {
-
-  let form = document.forms.sending.elements;
-  let randomLength = 10;
+function generateRandomString(length = 10) {
   let characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   let result = '';
-  let charactersLength = characters.length;
-  for (let i = 0; i < randomLength; i++) {
-    result += characters.charAt(Math.floor(Math.random() * charactersLength));
+  for (let i = 0; i < length; i++) {
+    result += characters.charAt(Math.floor(Math.random() * characters.length));
   }
-  form.data.value = result;
+  let form = document.forms.sending.elements;
+  form.data.value = result;  // Update the input field
+  return result;  // Return the generated string
+}
+async function AutoTest() {
+  auto_test_suc_cnt = 0;
+  randomData_tosend.clear();
+  let autoTestCount = parseInt(document.getElementById('autotest-count').value, 10);
+  let record_timestamp = new Date();
+  for (let i = 0; i < autoTestCount; i++) {
+    addToEventLog('Running auto test iteration ' + (i + 1));
+    // randomData_tosend = generateRandomString(); // Ensure generate new random data
+    await sendData();
+  }
+
+  // 计算总共耗时
+  let end_timestamp = new Date();
+  let time_diff = end_timestamp - record_timestamp;
+  // wait for 0.2s to check the result
+  await new Promise(r => setTimeout(r, 20));
+  if (auto_test_suc_cnt == autoTestCount) {
+    addToEventLog('Auto test success! ' + auto_test_suc_cnt + '/' + autoTestCount, 'summary');
+  }
+  else {
+    addToEventLog('Auto test failed! ' + auto_test_suc_cnt + '/' + autoTestCount, 'summary');
+  }
+
+  addToEventLog('Total time: ' + time_diff + 'ms', 'summary');
 }

@@ -40,6 +40,7 @@ input[type=text], textarea {
 }
 
 #tool {
+  align-items: center;
   flex-grow: 1;
   margin: 0 auto;
   max-width: 26em;
@@ -64,6 +65,11 @@ textarea {
 #send {
   margin-top: 0.5em;
   width: 15em;
+}
+#autotest {
+  margin-top: 0.5em;
+  width: 15em;
+  display: block;
 }
 
 #event-log {
