@@ -29,7 +29,8 @@
       <label for="url">URL:</label>
       <input type="text" name="url" id="url"
              value="https://localhost:4443/publish">
-      <input type="button" id="connect" value="Connect" onclick="connect()">
+      <input type="button" id="connect" value="Connect" onclick="connectHandler()">
+      <input type="button" id="add_client" value="Add Client" onclick="AddClient()">
       </div>
     </div>
     <div>
@@ -57,8 +58,12 @@
       </div>
       <input type="button" id="autotest" name="autotest" value="Auto test"
              disabled onclick="AutoTest()">
+      <input type="button" id="mutiple_client_test" name="mutiple_client_test" value="Mutiple Client Test"
+             disabled onclick="MutipleClientTest()">
       <input type="button" id="clear" name="clear" value="Clear log"
              onclick="clearLog()">
+      <input type="button" id="close" name="close" value="Close"
+             onclick="closeTransport()">
       </form>
     </div>
     <div>

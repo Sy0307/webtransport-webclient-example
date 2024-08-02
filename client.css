@@ -62,6 +62,7 @@ textarea {
   width: 100%;
 }
 
+
 #send {
   margin-top: 0.5em;
   width: 15em;
@@ -71,11 +72,25 @@ textarea {
   width: 15em;
   display: block;
 }
+
+#mutiple_client_test{
+  margin-top: 0.5em;
+  width: 15em;
+  display: block;
+}
+
 #clear {
   margin-top: 0.5em;
   width: 15em;
   display: block;
 }
+
+#close {
+  margin-top: 0.5em;
+  width: 15em;
+  display: block;
+}
+
 
 #event-log {
   border: 1px dotted black;
