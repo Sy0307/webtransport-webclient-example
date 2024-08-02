@@ -2,8 +2,6 @@
 <html lang="en">
   <title>WebTransport over HTTP/3 client</title>
   <meta charset="utf-8">
-  <!-- WebTransport origin trial token. See https://developer.chrome.com/origintrials/#/view_trial/793759434324049921 -->
-  <!-- <meta http-equiv="origin-trial" content="AkSQvBVsfMTgBtlakApX94hWGyBPQJXerRc2Aq8g/sKTMF+yG62+bFUB2yIxaK1furrNH3KNNeJV00UZSZHicw4AAABceyJvcmlnaW4iOiJodHRwczovL2dvb2dsZWNocm9tZS5naXRodWIuaW86NDQzIiwiZmVhdHVyZSI6IldlYlRyYW5zcG9ydCIsImV4cGlyeSI6MTY0Mzc1OTk5OX0="> -->
   <script src="client.js"></script>
   <link rel="stylesheet" href="client.css">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -52,19 +50,22 @@
         <label for="bidi-stream">Open a bidirectional stream</label>
       </div>
       <input type="button" id="send" name="send" value="Send data"
-             disabled onclick="sendData()">
+             disabled onclick="sendDataHandler()">
       <div>
         <label for="autotest-count">Auto test group count:</label>
-        <input type="number" id="autotest-count" name="autotest-count" min="1" value="1">
+        <input type="number" id="autotest-count" name="autotest-count" min="1" value="2048">
       </div>
       <input type="button" id="autotest" name="autotest" value="Auto test"
              disabled onclick="AutoTest()">
+      <input type="button" id="clear" name="clear" value="Clear log"
+             onclick="clearLog()">
       </form>
     </div>
     <div>
       <h2>Event log</h2>
-      <ul id="event-log">
-      </ul>
+      <ul id="event-log"></ul>
+      <div id="state-log"></div> <!-- State log -->
+    </div>
     </div>
     </div>
   </div>
