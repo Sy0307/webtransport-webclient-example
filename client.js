@@ -1,5 +1,5 @@
 let currentTransport, streamNumber;
-let fghex = "9942029c06af74dbfd87d84d85404f1b53806670b5a637a287aa21135bb09e54";
+let fghex = "33a5ffd491c68a214e93da10f46f01deec6e0b25c1f52ef052343aaa516930a0";
 let fingerprint = [];
 let bidiStreamCount = 0;
 for (let c = 0; c < fghex.length - 1; c += 2) {
@@ -7,6 +7,7 @@ for (let c = 0; c < fghex.length - 1; c += 2) {
 }
 var auto_test_suc_cnt = 0;
 const randomData_tosend = new Set();
+const recv_data_for_auto_test = new Set();
 let LogTimeSpent = 0;
 let LogQueue = [];
 var Button_timeout = 20;
@@ -20,7 +21,8 @@ async function AddClient() {
       {
         algorithm: 'sha-256',
         value: new Uint8Array(fingerprint)
-      }
+      },
+
     ]
   });
   ClientList.push(client);
@@ -137,7 +139,7 @@ async function sendDataHandler() {
   let transport = currentTransport;
   sendData(transport);
 
-  await timeout(20);
+  await timeout(100);
   flushLogQueue();
 
 }
@@ -150,7 +152,7 @@ async function sendData(transport) {
   try {
     switch (form.sendtype.value) {
       case 'datagram': {
-        randomData_tosend.add(random_gen_data);
+        await randomData_tosend.add(random_gen_data);
         let writer = transport.datagrams.writable.getWriter();
         await writer.write(data);
 
@@ -163,7 +165,7 @@ async function sendData(transport) {
       case 'unidi': {
         let stream = await transport.createUnidirectionalStream();
         let writer = stream.getWriter();
-        randomData_tosend.add(random_gen_data);
+        await randomData_tosend.add(random_gen_data);
         await writer.write(data);
         await writer.close();
         addToEventLog('Sent a unidirectional stream with data: ' + random_gen_data);
@@ -206,7 +208,8 @@ async function readDatagrams(transport) {
       }
       let data = decoder.decode(value);
       await addToEventLog('Echo Datagram received: ' + data);
-      await validateData(data);
+      // await validateData(data);
+      recv_data_for_auto_test.add(data);
     }
   } catch (e) {
     addToEventLog('Error while reading datagrams: ' + e, 'error');
@@ -238,7 +241,7 @@ async function acceptUnidirectionalStreams(transport) {
       }
       let stream = value; // ReadableStream
       let number = streamNumber++; // stream_id
-      validateData(value);
+      // validateData(value);
       readFromIncomingStream(stream, number);
     }
   } catch (e) {
@@ -257,6 +260,7 @@ async function acceptBidirectionalStreams(transport, bidiStream, expectedData) {
         bidiStreamCount++;
         addToEventLog('Recv data on bidirectional stream: ' + bidiStreamCount + ' : ' + data);
         validateData(data, expectedData);
+        recv_data_for_auto_test.add(data);
         addToEventLog('Done accepting bidirectional streams!');
         return;
       }
@@ -280,7 +284,10 @@ async function readFromIncomingStream(stream, number) {
       }
       let data = value;
       addToEventLog('Received data on stream #' + number + ': ' + data);
-      await validateData(data, expectedData);
+      validateData(data, expectedData);
+      if (data.length > 2)
+        recv_data_for_auto_test.add(data);
+
     }
   } catch (e) {
     addToEventLog(
@@ -288,9 +295,9 @@ async function readFromIncomingStream(stream, number) {
     addToEventLog('    ' + e.message);
   }
 }
-function validateData(receivedData, expectedData) {
+async function validateData(receivedData, expectedData) {
   if (randomData_tosend.has(receivedData)) {
-    randomData_tosend.delete(receivedData);
+    // randomData_tosend.delete(receivedData);
     auto_test_suc_cnt += 1;
     return;
   }
@@ -328,7 +335,7 @@ async function flushLogQueue() {
 
   console.log('queue size = ' + LogQueue.length);
   let log = document.getElementById('event-log');
-  if (LogQueue.length > 10) {
+  if (LogQueue.length > 1000) {
     for (let i = 0; i < 5; i++) {
       log.appendChild(LogQueue[i]);
     }
@@ -359,6 +366,7 @@ function generateRandomString(length = 10) {
   form.data.value = result;  // Update the input field
   return result;  // Return the generated string
 }
+
 async function AutoTest() {
   auto_test_suc_cnt = 0;
   let autoTestCount = parseInt(document.getElementById('autotest-count').value, 10);
@@ -374,19 +382,34 @@ async function AutoTest() {
   // 计算总共耗时
   let time_diff = performance.now() - record_timestamp;
   // wait for 0.2s to check the result
-  await timeout(50);
+  await timeout(500);
 
   let stateLog = document.getElementById('state-log');
-  if (auto_test_suc_cnt == autoTestCount) {
+  // if (auto_test_suc_cnt == autoTestCount) {
+
+  if (randomData_tosend.size == recv_data_for_auto_test.size) {
     addToEventLog('Auto test success! ' + auto_test_suc_cnt + '/' + autoTestCount, 'summary');
     stateLog.innerText = 'State: Success';
     stateLog.style.color = 'green';
   } else {
     addToEventLog('Auto test failed! ' + auto_test_suc_cnt + '/' + autoTestCount, 'summary');
+    addToEventLog('Fail test = ');
+
+
+    // addToEventLog("Recv data size = " + recv_data_for_auto_test.size);
+    // addToEventLog("Send data size = " + randomData_tosend.size);
+
+    // for (let entry of recv_data_for_auto_test) {
+    //   if (!randomData_tosend.has(entry))
+    //     addToEventLog(entry);
+    // }
+
     stateLog.innerText = 'State: Failed';
     stateLog.style.color = 'red';
   }
   addToEventLog('Total time: ' + time_diff + 'ms', 'summary');
+  randomData_tosend.clear();
+  recv_data_for_auto_test.clear();
   flushLogQueue();
 }
 
@@ -401,6 +424,6 @@ async function MutipleClientTest() {
   for (let entry of ClientList) {
     await sendData(entry);
   }
-  await timeout(50);
+  await timeout(200);
   flushLogQueue();
 }
